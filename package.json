@@ -47,6 +47,14 @@
   "dependencies": {
     "zod": "^3.25.76"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tortoise014/dsh-tasks-panel.git"
+  },
+  "homepage": "https://github.com/tortoise014/dsh-tasks-panel#readme",
+  "bugs": {
+    "url": "https://github.com/tortoise014/dsh-tasks-panel/issues"
+  },
   "engines": {
     "node": ">=20"
   },
