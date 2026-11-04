@@ -1,0 +1,48 @@
+name: release
+
+# Tag a commit (git tag v0.5.1 && git push origin v0.5.1) and this attaches the
+# packaged tarball to a GitHub Release. It does NOT touch npm — publishing to the
+# registry stays a deliberate, human-approved step (see publish.yml).
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - run: npm test
+
+      - name: Pack the bundle
+        run: npm pack
+
+      - name: Publish the GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dsh-tasks-panel-*.tgz
+          generate_release_notes: true
+          body: |
+            Install from the tarball:
+
+            ```
+            plugin_manager install_bundle target:"<downloaded>.tgz"
+            ```
+
+            or from npm once that version is published:
+
+            ```
+            plugin_manager install_bundle target:"dsh-tasks-panel"
+            ```

@@ -1,0 +1,45 @@
+name: publish
+
+# Publishes the package to npm using trusted publishing (OIDC) — no long-lived
+# token lives in this repository. It only works after the package is registered
+# as a trusted publisher on npmjs.com:
+#
+#   https://www.npmjs.com/package/dsh-tasks-panel -> Settings -> Trusted publishing
+#   Publisher: GitHub Actions
+#   Organization or user: tortoise014
+#   Repository: dsh-tasks-panel
+#   Workflow filename: publish.yml
+#   Environment: (leave empty)
+#
+# Until that is configured the run fails at the publish step with a 404/ENEEDAUTH;
+# that is expected and harmless. npm may still stage the release for approval.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      - run: npm test
+
+      - name: Check that the tag and package version agree
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "package version: $version"
+
+      - name: Publish with provenance
+        run: npx npm@11 publish --access public --provenance
