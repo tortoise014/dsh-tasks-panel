@@ -60,9 +60,30 @@ turning a push on is a user decision, not an agent one.
 
 Data lives in the `dsh_tasks` storage domain (`tasks`, `events` tables plus a
 `global` record holding the reminder settings); the browser half talks to
-`POST /api/dsh-tasks/op` on the host half.
+`POST /api/dsh-tasks-panel/op` on the host half.
 
 `zod@3.25.76` is vendored under `node_modules/zod` because a bundle installed by
 link (`"dsh-tasks-panel": "link:…"`) does not get its dependencies installed by
 pnpm. An npm install pulls zod from the registry instead, so the published
 tarball deliberately does not ship `node_modules`.
+
+## Development
+
+```bash
+npm install     # zod for the host half, jsdom + react for the UI suite
+npm test        # runs the three suites below in order
+```
+
+| suite | what it covers |
+| --- | --- |
+| `node test/host.mjs` (38 checks) | storage ops (`add`/`complete`/`reopen`/`update`/`remove`/`clearCompleted`), time normalisation, the HTTP-op surface, and the `task_write` tool |
+| `node test/reminders.mjs` (26 checks) | Feishu scheduling: due detection, one push per slot, the six-hour grace window, signature signing, error reporting, the settings guard |
+| `node test/ui.mjs` (57 checks) | the client half rendered in jsdom: slot registration, to-do rows, all three hover cards, the compose form's date/time defaults, the first-run guide, the reminder settings card |
+
+Everything runs against the real bundle. The host suites import `index.js` with a
+fake Cordis context and in-memory tables; the UI suite loads `client.js` through a
+stand-in `window.__ModuleLoader__` and renders the panel into jsdom. No network:
+the Feishu calls are a stub `fetch` that records the payload it would have sent.
+
+GitHub Actions runs the same three suites on Node 20 and 22 for every push and
+pull request — see `.github/workflows/test.yml`.
