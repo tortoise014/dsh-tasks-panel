@@ -3,6 +3,8 @@
 [![test](https://github.com/tortoise014/dsh-tasks-panel/actions/workflows/test.yml/badge.svg)](https://github.com/tortoise014/dsh-tasks-panel/actions/workflows/test.yml)
 [![npm](https://img.shields.io/npm/v/dsh-tasks-panel.svg)](https://www.npmjs.com/package/dsh-tasks-panel)
 
+English | [中文](README.zh-CN.md)
+
 A DeepSeek Harness sidebar plugin: a personal to-do list plus a month calendar of
 what happened on each day.
 
