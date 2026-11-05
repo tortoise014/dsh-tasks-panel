@@ -103,6 +103,7 @@ const initial = await callApi({ op: 'settings' })
 check('settings default disabled', initial.value?.enabled === false, initial.value)
 check('settings default empty webhook', initial.value?.webhook === '', initial.value)
 check('guide not seen yet', initial.value?.onboarded === false, initial.value)
+check('auto-complete defaults on', initial.value?.autoComplete === true, initial.value)
 
 // --- validation -------------------------------------------------------------
 const badUrl = await callApi({ op: 'saveSettings', webhook: 'not-a-url' })
@@ -136,6 +137,13 @@ check('reminder text has note', /带课本/.test(sent[sent.length - 1]?.body?.co
 const afterTick = await callApi({ op: 'list' })
 const marked = afterTick.value?.tasks?.find((task) => task.id === dueId)
 check('task marked notified', marked?.notifiedFor === `${soon.due}T${soon.time}` && typeof marked?.notifiedAt === 'string', marked)
+check(
+  'a delivered reminder closes the task',
+  marked?.status === 'done' && marked?.autoCompleted === true && typeof marked?.completedAt === 'string',
+  marked,
+)
+const autoEvent = afterTick.value?.events?.find((event) => event.taskId === dueId && event.kind === 'completed')
+check('the auto completion is logged as automatic', autoEvent?.auto === true, autoEvent)
 
 const tick2 = await callApi({ op: 'tick' })
 check('second tick deduped', tick2.value?.sent === 0 && sent.length === before + 1, tick2.value)
@@ -150,6 +158,7 @@ check('stale slot not pushed', tick3.value?.sent === 0 && sent.length === before
 const staleList = await callApi({ op: 'list' })
 const staleMarked = staleList.value?.tasks?.find((task) => task.id === staleId)
 check('stale slot marked silently', typeof staleMarked?.notifiedFor === 'string' && staleMarked?.notifiedAt === null, staleMarked)
+check('a skipped stale task stays open', staleMarked?.status === 'open' && !staleMarked?.autoCompleted, staleMarked)
 
 // --- task without a clock never reminds ------------------------------------
 const dateOnly = await callApi({ op: 'add', title: '交房租', due: stale.due })
@@ -168,6 +177,30 @@ check('moved task reminds again', tick4.value?.sent === 1, tick4.value)
 const movedList = await callApi({ op: 'list' })
 const movedAfter = movedList.value?.tasks?.find((task) => task.id === staleId)
 check('re-marks moved slot', movedAfter?.notifiedFor === `${moved.due}T${moved.time}`)
+
+// --- a click still wins, and is not labelled automatic ---------------------
+const manual = await callApi({ op: 'add', title: '手动完成' })
+const manualDone = await callApi({ op: 'complete', id: manual.value?.task?.id })
+check(
+  'a clicked completion is not marked automatic',
+  manualDone.value?.task?.status === 'done' && manualDone.value?.task?.autoCompleted === false,
+  manualDone.value?.task,
+)
+
+// --- turning auto-complete off keeps tasks open ---------------------------
+await callApi({ op: 'saveSettings', enabled: true, webhook: hook, autoComplete: false })
+const keep = at(-1)
+const keepTask = await callApi({ op: 'add', title: '只提醒不完成', due: keep.due, time: keep.time })
+const beforeKeep = sent.length
+const tickKeep = await callApi({ op: 'tick' })
+const keepList = await callApi({ op: 'list' })
+const keptTask = keepList.value?.tasks?.find((task) => task.id === keepTask.value?.task?.id)
+check(
+  'auto-complete off still pushes but leaves the task open',
+  tickKeep.value?.sent === 1 && sent.length === beforeKeep + 1 && keptTask?.status === 'open' && typeof keptTask?.notifiedAt === 'string',
+  keptTask,
+)
+await callApi({ op: 'saveSettings', autoComplete: true })
 
 // --- feishu rejection surfaces as an error ---------------------------------
 feishuReply = { code: 19001, msg: 'param invalid: incoming webhook sign mismatch' }

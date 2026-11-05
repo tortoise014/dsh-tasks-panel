@@ -75,12 +75,28 @@ const taskDone = {
   source: 'user',
   sessionId: null,
 }
-const tasks = [taskToday, taskOpen, taskDone]
+// Closed by a delivered reminder, not by a click.
+const taskAuto = {
+  id: 't_auto_0004',
+  title: '自动完成的任务',
+  note: null,
+  due: today,
+  time: '07:00',
+  status: 'done',
+  createdAt: iso(-300),
+  updatedAt: iso(-180),
+  completedAt: iso(-180),
+  autoCompleted: true,
+  source: 'user',
+  sessionId: null,
+}
+const tasks = [taskToday, taskOpen, taskDone, taskAuto]
 const events = [
   { id: 'e1', taskId: taskOpen.id, title: taskOpen.title, kind: 'created', at: iso(-90), due: taskOpen.due, time: taskOpen.time },
   { id: 'e2', taskId: taskDone.id, title: taskDone.title, kind: 'created', at: iso(-240), due: null, time: null },
   { id: 'e3', taskId: taskDone.id, title: taskDone.title, kind: 'completed', at: iso(-30), due: null, time: null },
   { id: 'e4', taskId: taskToday.id, title: taskToday.title, kind: 'created', at: iso(-50), due: taskToday.due, time: taskToday.time },
+  { id: 'e5', taskId: taskAuto.id, title: taskAuto.title, kind: 'completed', at: iso(-180), due: taskAuto.due, time: taskAuto.time, auto: true },
 ]
 
 const calls = []
@@ -93,11 +109,11 @@ globalThis.fetch = window.fetch = async (url, init) => {
     body.op === 'list'
       ? { tasks, events }
       : body.op === 'settings'
-        ? { enabled: false, webhook: '', secret: '', onboarded: onboardedSeen, waiting: 1, lastSentAt: null, lastError: null }
+        ? { enabled: false, webhook: '', secret: '', autoComplete: true, onboarded: onboardedSeen, waiting: 1, lastSentAt: null, lastError: null }
         : body.op === 'saveSettings'
           ? (() => {
               if (body.onboarded !== undefined) onboardedSeen = Boolean(body.onboarded)
-              return { enabled: Boolean(body.enabled), webhook: body.webhook ?? '', secret: body.secret ?? '', onboarded: onboardedSeen, waiting: 1, lastSentAt: null, lastError: null }
+              return { enabled: Boolean(body.enabled), webhook: body.webhook ?? '', secret: body.secret ?? '', autoComplete: body.autoComplete === undefined ? true : Boolean(body.autoComplete), onboarded: onboardedSeen, waiting: 1, lastSentAt: null, lastError: null }
             })()
           : body.op === 'testNotify'
             ? { ok: true }
@@ -217,11 +233,16 @@ await tick(20)
 check('back returns to the panel we came from', selectedPanel === 'plugins', String(selectedPanel))
 
 const items = document.querySelectorAll('.dsht-item')
-check('three task rows', items.length === 3, `got ${items.length}`)
+check('four task rows (two open, two done)', items.length === 4, `got ${items.length}`)
 
 const dueChips = [...document.querySelectorAll('.dsht-due')].map((node) => node.textContent)
 check('today chip shows the date and the clock time', dueChips.some((label) => label.includes('今天') && label.includes('09:00')), dueChips.join(' | '))
 check('future chip shows the date and the clock time', dueChips.some((label) => label.includes(tomorrow.slice(5)) && label.includes('18:30')), dueChips.join(' | '))
+
+// finished rows: an auto-closed task says so, a clicked one does not.
+const autoTags = [...document.querySelectorAll('.dsht-auto')].map((node) => node.textContent)
+check('auto-closed task carries a tag', autoTags.length === 1, autoTags.join(' | ') || 'none')
+check('a clicked completion has no auto tag', document.querySelectorAll('.dsht-tag.dsht-auto').length === 1)
 
 const enter = (element) => {
   element.dispatchEvent(new window.MouseEvent('mouseenter', { bubbles: false }))
@@ -296,6 +317,11 @@ tabButtons[1].dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
 await tick(40)
 const cells = document.querySelectorAll('.dsht-cell')
 check('calendar rendered 42 cells', cells.length === 42, `got ${cells.length}`)
+check(
+  'the day log tells an auto completion apart',
+  [...document.querySelectorAll('.dsht-kind')].some((node) => /event\.autoCompleted/.test(node.textContent ?? '')),
+  [...document.querySelectorAll('.dsht-kind')].map((node) => node.textContent).join(','),
+)
 
 const withEvents = [...cells].find((cell) => cell.querySelector('.dsht-dot'))
 check('a day cell carries event dots', Boolean(withEvents))
@@ -345,6 +371,21 @@ const hookInput = settings && settings.querySelector('input[type="url"]')
 const secretInput = settings && settings.querySelector('input[type="password"]')
 check('settings offers switch, webhook and secret', Boolean(switchInput) && Boolean(hookInput) && Boolean(secretInput))
 check('reminders start switched off', Boolean(switchInput) && switchInput.checked === false)
+const autoInput = settings && settings.querySelectorAll('input[type="checkbox"]')[1]
+check('settings offers the auto-complete switch', Boolean(autoInput) && autoInput.checked === true)
+if (autoInput) {
+  autoInput.click()
+  await tick(80)
+  const autoCall = [...calls].reverse().find((call) => call.body.op === 'saveSettings' && call.body.autoComplete !== undefined)
+  check('auto-complete switch saves by itself', autoCall?.body?.autoComplete === false, JSON.stringify(autoCall?.body))
+  check(
+    'auto-complete switch reports itself off',
+    /settings\.autoOff/.test(document.querySelector('.dsht-settings')?.textContent ?? ''),
+    document.querySelector('.dsht-settings')?.textContent?.slice(-120),
+  )
+  autoInput.click()
+  await tick(80)
+}
 check('settings spells out the date+time rule', /settings\.hint/.test(settings?.textContent ?? ''), settings?.textContent?.slice(0, 120))
 if (settings && hookInput) {
   const buttons = [...settings.querySelectorAll('.dsht-settings-actions button')]

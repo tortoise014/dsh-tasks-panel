@@ -33,6 +33,8 @@ const TaskSchema = z.object({
   // `${due}T${time}` that was already pushed, so a reminder fires once per slot.
   notifiedFor: z.string().nullish(),
   notifiedAt: z.string().nullish(),
+  // True when the reminder itself closed the task, so the UI can say so.
+  autoCompleted: z.boolean().nullish(),
 })
 
 const EventSchema = z.object({
@@ -43,6 +45,8 @@ const EventSchema = z.object({
   at: z.string(),
   due: DateString,
   time: ClockString,
+  // Set when the reminder closed the task instead of a click.
+  auto: z.boolean().nullish(),
 })
 
 const SettingsSchema = z.object({
@@ -51,6 +55,8 @@ const SettingsSchema = z.object({
   secret: z.string(),
   // Whether the first-run guide was already shown and dismissed.
   onboarded: z.boolean().nullish(),
+  // Whether a delivered reminder closes the task. On unless switched off.
+  autoComplete: z.boolean().nullish(),
 })
 
 const SPEC = {
@@ -61,7 +67,7 @@ const SPEC = {
   invalidRecords: 'backup-and-skip',
   global: {
     schema: SettingsSchema,
-    initial: { enabled: false, webhook: '', secret: '', onboarded: false },
+    initial: { enabled: false, webhook: '', secret: '', onboarded: false, autoComplete: true },
   },
   tables: {
     tasks: { valueSchema: TaskSchema },
@@ -185,7 +191,7 @@ function createOps(ctx) {
   const tasks = async () => (await domain()).table('tasks')
   const events = async () => (await domain()).table('events')
 
-  async function appendEvent(task, kind, at) {
+  async function appendEvent(task, kind, at, auto = false) {
     const record = {
       id: `e_${randomUUID()}`,
       taskId: task.id,
@@ -194,6 +200,7 @@ function createOps(ctx) {
       at,
       due: task.due,
       time: task.time ?? null,
+      ...(auto ? { auto: true } : {}),
     }
     await (await events()).put(record.id, record)
     return record
@@ -225,6 +232,7 @@ function createOps(ctx) {
       webhook: values.webhook ?? '',
       secret: values.secret ?? '',
       onboarded: Boolean(values.onboarded),
+      autoComplete: values.autoComplete !== false,
       waiting,
       lastSentAt,
       lastError,
@@ -240,6 +248,10 @@ function createOps(ctx) {
       secret: input.secret === undefined ? current.secret : String(input.secret ?? '').trim().slice(0, 200),
       onboarded:
         input.onboarded === undefined ? Boolean(current.onboarded) : Boolean(input.onboarded),
+      autoComplete:
+        input.autoComplete === undefined
+          ? current.autoComplete !== false
+          : Boolean(input.autoComplete),
     }
     if (next.enabled && !next.webhook) throw new Error('填写飞书 webhook 后才能开启提醒')
     // Turning reminders on means the setup guide was understood; do not show it again.
@@ -287,9 +299,20 @@ function createOps(ctx) {
           await table.put(id, { ...task, notifiedFor: slot })
           continue
         }
+        const pushedAt = new Date().toISOString()
         await postFeishu(settings, reminderText(task))
-        await table.put(id, { ...task, notifiedFor: slot, notifiedAt: new Date().toISOString() })
-        lastSentAt = new Date().toISOString()
+        const next = { ...task, notifiedFor: slot, notifiedAt: pushedAt }
+        // A delivered reminder marks the moment the appointment happens, so the
+        // task closes itself instead of waiting for a click that never comes.
+        if (settings.autoComplete !== false) {
+          next.status = 'done'
+          next.completedAt = pushedAt
+          next.updatedAt = pushedAt
+          next.autoCompleted = true
+        }
+        await table.put(id, next)
+        if (next.status === 'done') await appendEvent(next, 'completed', pushedAt, true)
+        lastSentAt = pushedAt
         sent += 1
       }
       lastError = null
@@ -345,7 +368,7 @@ function createOps(ctx) {
       const { table, task } = await requireTask(input.id)
       if (task.status === 'done') return { task }
       const timestamp = new Date().toISOString()
-      const next = { ...task, status: 'done', completedAt: timestamp, updatedAt: timestamp }
+      const next = { ...task, status: 'done', completedAt: timestamp, updatedAt: timestamp, autoCompleted: false }
       await table.put(next.id, next)
       const event = await appendEvent(next, 'completed', timestamp)
       return { task: next, event }
@@ -355,7 +378,7 @@ function createOps(ctx) {
       const { table, task } = await requireTask(input.id)
       if (task.status === 'open') return { task }
       const timestamp = new Date().toISOString()
-      const next = { ...task, status: 'open', completedAt: null, updatedAt: timestamp }
+      const next = { ...task, status: 'open', completedAt: null, updatedAt: timestamp, autoCompleted: null }
       await table.put(next.id, next)
       const event = await appendEvent(next, 'reopened', timestamp)
       return { task: next, event }

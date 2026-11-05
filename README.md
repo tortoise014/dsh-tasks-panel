@@ -6,7 +6,7 @@
   <a href="https://www.npmjs.com/package/dsh-tasks-panel"><img alt="downloads" src="https://img.shields.io/npm/dm/dsh-tasks-panel?color=2f81f7"></a>
   <img alt="license" src="https://img.shields.io/npm/l/dsh-tasks-panel?color=3fb950">
   <img alt="node" src="https://img.shields.io/node/v/dsh-tasks-panel?color=339933&logo=node.js">
-  <img alt="checks" src="https://img.shields.io/badge/tests-121%20checks-brightgreen">
+  <img alt="checks" src="https://img.shields.io/badge/tests-135%20checks-brightgreen">
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@ back where you were.
 | 👀 **Today at a glance** | Hover the sidebar icon: a floating agenda lists today's tasks with their times, anything overdue, and how much is still open. No click, no context switch. |
 | 🗓 **Calendar** | Every event — added, finished, reopened, edited, deleted — is drawn on the month grid. Click a day to read its log. |
 | 💬 **Hover preview** | Point at a task or a day for the full card: title, note, due date and time, source, session, timestamps. Cards dodge the sidebar instead of covering it. |
-| ⏰ **Feishu reminders** | Paste a group-bot webhook once. At the due minute the host pushes `⏰ title / time / note` to your phone. |
+| ⏰ **Feishu reminders** | Paste a group-bot webhook once. At the due minute the host pushes `⏰ title / time / note` to your phone — and closes the task, so an appointment you kept does not sit in the list waiting for a click. |
 | 🤖 **Agent tool** | `task_write` lets the assistant add and close tasks — same operations as the UI, so the two never diverge. |
 
 ## Screenshots
@@ -67,6 +67,8 @@ alone is a to-do for the day, not an appointment, so it stays quiet.
 | Moving a task to a new time re-arms it | An appointment that moved deserves a new reminder. |
 | A slot more than 6 hours old is marked, not pushed | A laptop asleep overnight should not dump yesterday on you at 9 a.m. |
 | The switch saves by itself, webhook included | Pressing the switch then forgetting Save is how "enabled: false" happens. |
+| A delivered reminder closes the task | An appointment that has happened is done; coming back to tick it is busywork. Turn **Close the task once it is pushed** off to keep tasks open. |
+| Only a real push closes it | Tasks skipped by the six-hour window stay open — silence is not completion. |
 | `task_write` has no reminder action | Turning on a push to your phone is your decision, not the agent's. |
 
 The panel shows the last send time and the last delivery error, and **Send a test** proves the phone
@@ -93,8 +95,8 @@ npm test        # runs the three suites in order
 | suite | what it covers |
 | --- | --- |
 | `node test/host.mjs` (38 checks) | storage ops (`add`/`complete`/`reopen`/`update`/`remove`/`clearCompleted`), time normalisation, the HTTP-op surface, the `task_write` tool |
-| `node test/reminders.mjs` (26 checks) | Feishu scheduling: due detection, one push per slot, the six-hour grace window, signature signing, error reporting, the settings guard |
-| `node test/ui.mjs` (57 checks) | the client half rendered in jsdom: slot registration, to-do rows, all three hover cards, the compose form's defaults, the first-run guide, the settings card |
+| `node test/reminders.mjs` (32 checks) | Feishu scheduling: due detection, one push per slot, the six-hour grace window, auto-completion on delivery, signature signing, error reporting, the settings guard |
+| `node test/ui.mjs` (65 checks) | the client half rendered in jsdom: slot registration, to-do rows, all three hover cards, the compose form's defaults, the first-run guide, the settings card with both switches |
 
 Everything runs against the real bundle — no mocks of our own code. The host suites import `index.js`
 with a fake Cordis context and in-memory tables; the UI suite loads `client.js` through a stand-in

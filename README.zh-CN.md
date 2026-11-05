@@ -6,7 +6,7 @@
   <a href="https://www.npmjs.com/package/dsh-tasks-panel"><img alt="downloads" src="https://img.shields.io/npm/dm/dsh-tasks-panel?color=2f81f7"></a>
   <img alt="license" src="https://img.shields.io/npm/l/dsh-tasks-panel?color=3fb950">
   <img alt="node" src="https://img.shields.io/node/v/dsh-tasks-panel?color=339933&logo=node.js">
-  <img alt="checks" src="https://img.shields.io/badge/tests-121%20checks-brightgreen">
+  <img alt="checks" src="https://img.shields.io/badge/tests-135%20checks-brightgreen">
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@
 | 👀 **今天一眼看完** | 悬停侧栏图标浮出今日日程：今天的任务与时刻、已逾期的事项、还有多少没完成 —— 不用点开、不打断当前状态。 |
 | 🗓 **日历** | 每个事件（新增、完成、重新打开、编辑、删除）都画在月网格上；点某一天读那天完整的记录。 |
 | 💬 **悬停预览** | 鼠标指向任务或某一天，浮出完整卡片：标题、备注、截止日期与时间、来源、会话、时间戳。卡片会避让侧栏，而不是盖住它。 |
-| ⏰ **飞书到点提醒** | 粘一次群机器人 webhook。到点那一刻，宿主把 `⏰ 标题 / 时间 / 备注` 推到你手机。 |
+| ⏰ **飞书到点提醒** | 粘一次群机器人 webhook。到点那一刻，宿主把 `⏰ 标题 / 时间 / 备注` 推到你手机，并把任务标记完成 —— 已经发生的约会不该还躺在列表里等你点一下。 |
 | 🤖 **助手工具** | `task_write` 让助手添加、完成任务 —— 和 UI 是同一套操作，所以两边永远不会各记一份。 |
 
 ## 截图
@@ -60,6 +60,8 @@ plugin_manager install_bundle target:"dsh-tasks-panel"
 | 改到新时间会重新提醒 | 改期的约物理应再响一次。 |
 | 过去超过 6 小时的时段只标记、不补推 | 笔记本睡一晚，不该在早上九点被昨天的安排刷屏。 |
 | 开关自带保存（连 webhook 一起存） | 「点了开关却忘了保存」正是 `enabled: false` 的经典成因。 |
+| 推送成功就把任务标记完成 | 约会已经发生，回来再点一次是纯体力活；不想要可以关掉「推送后自动标记完成」。 |
+| 只有真推送才自动完成 | 因为超过 6 小时被静默跳过的任务保持未完成 —— 沉默不等于做完。 |
 | `task_write` 没有开关提醒的动作 | 要不要推到你手机是你的决定，不是助手的。 |
 
 设置卡会显示最近一次发送时间和最近一次投递错误；**发送测试**能在你真正依赖它之前证明手机收得到。飞书机器人开了签名校验，把密钥也填进去即可。
@@ -80,8 +82,8 @@ npm test        # 依次跑下面三套
 | 测试 | 覆盖什么 |
 | --- | --- |
 | `node test/host.mjs`（38 项） | 存储操作（`add`/`complete`/`reopen`/`update`/`remove`/`clearCompleted`）、时间规范化、HTTP op 接口、`task_write` 工具 |
-| `node test/reminders.mjs`（26 项） | 飞书调度：到期判定、每个时段只推一次、6 小时宽限、签名、错误上报、设置校验 |
-| `node test/ui.mjs`（57 项） | 在 jsdom 里渲染的浏览器半边：slot 注册、待办行、三种悬停卡、添加表单的默认值、首次引导、提醒设置卡 |
+| `node test/reminders.mjs`（32 项） | 飞书调度：到期判定、每个时段只推一次、6 小时宽限、推送后自动完成、签名、错误上报、设置校验 |
+| `node test/ui.mjs`（65 项） | 在 jsdom 里渲染的浏览器半边：slot 注册、待办行、三种悬停卡、添加表单的默认值、首次引导、带两个开关的提醒设置卡 |
 
 全部对着真实的 bundle 跑，不 mock 自己的代码。宿主套件用假的 Cordis context 和内存表 import `index.js`；UI 套件通过假的 `window.__ModuleLoader__` 加载 `client.js`，把面板渲染进 jsdom。全程不联网：飞书调用是打桩的 `fetch`，只记录它本来会发出去的 payload。
 

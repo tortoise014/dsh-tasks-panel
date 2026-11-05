@@ -36,6 +36,8 @@ window.__ModuleLoader__.load({
       'list.today': '今天',
       'list.due': '截止 {date}',
       'list.fromAgent': '来自助手',
+      'list.auto': '到点完成',
+      'list.autoTitle': '到点提醒推出去之后自动标记为完成',
       'list.delete': '删除',
       'list.reopen': '重新打开',
       'calendar.prev': '上个月',
@@ -54,6 +56,7 @@ window.__ModuleLoader__.load({
       'calendar.hint': '点日历上的任意一天，查看当天发生了什么。',
       'event.created': '新增',
       'event.completed': '完成',
+      'event.autoCompleted': '到点完成',
       'event.reopened': '重新打开',
       'event.updated': '修改',
       'event.deleted': '删除',
@@ -67,6 +70,8 @@ window.__ModuleLoader__.load({
       'hover.session': '会话',
       'hover.created': '创建于',
       'hover.completed': '完成于',
+      'hover.auto': '完成方式',
+      'hover.autoValue': '到点提醒推送后自动完成',
       'hover.stamp': '{month} 月 {day} 日 {time}',
       'hover.hintOpen': '悬停即预览，点左侧圆圈标记完成。',
       'hover.hintDone': '点左侧圆圈可以重新打开',
@@ -103,6 +108,10 @@ window.__ModuleLoader__.load({
       'settings.sent': '测试消息已发送，看看手机上的飞书。',
       'settings.enabledOn': '提醒已开启，到点会推送到飞书。',
       'settings.enabledOff': '提醒已关闭，到点不再推送。',
+      'settings.autoComplete': '推送后自动标记完成',
+      'settings.autoCompleteHint': '到点提醒发出去之后，这条任务就算做完了，不用再回来点一下。',
+      'settings.autoOn': '到点推送后会自动完成。',
+      'settings.autoOff': '到点只推送，不会自动完成。',
       'settings.unsaved': 'webhook / 密钥有改动还没保存，点「保存」才生效。',
       'settings.hint': '只有同时填了日期和时间的待办才会提醒；没写时间的任务不提醒。提醒在到点后 6 小时内有效，错过太久的只记录不推送。',
       'settings.guide': '使用说明',
@@ -141,6 +150,8 @@ window.__ModuleLoader__.load({
       'list.today': 'Today',
       'list.due': 'Due {date}',
       'list.fromAgent': 'from the assistant',
+      'list.auto': 'auto',
+      'list.autoTitle': 'Closed automatically when the reminder was delivered',
       'list.delete': 'Delete',
       'list.reopen': 'Reopen',
       'calendar.prev': 'Previous month',
@@ -159,6 +170,7 @@ window.__ModuleLoader__.load({
       'calendar.hint': 'Pick any day to see what happened then.',
       'event.created': 'Added',
       'event.completed': 'Finished',
+      'event.autoCompleted': 'auto-done',
       'event.reopened': 'Reopened',
       'event.updated': 'Edited',
       'event.deleted': 'Deleted',
@@ -172,6 +184,8 @@ window.__ModuleLoader__.load({
       'hover.session': 'Session',
       'hover.created': 'Created',
       'hover.completed': 'Finished',
+      'hover.auto': 'Closed by',
+      'hover.autoValue': 'the reminder, automatically',
       'hover.stamp': '{month}/{day} {time}',
       'hover.hintOpen': 'Hover to preview · click the circle to finish',
       'hover.hintDone': 'Click the circle to reopen',
@@ -208,6 +222,10 @@ window.__ModuleLoader__.load({
       'settings.sent': 'Test message sent — check Feishu on your phone.',
       'settings.enabledOn': 'Reminders are on — they will land in Feishu when a task comes due.',
       'settings.enabledOff': 'Reminders are off — nothing will be pushed.',
+      'settings.autoComplete': 'Close the task once it is pushed',
+      'settings.autoCompleteHint': 'When the reminder goes out, the task counts as done — no need to come back and tick it.',
+      'settings.autoOn': 'A delivered reminder will mark the task done.',
+      'settings.autoOff': 'Reminders push only; the task stays open.',
       'settings.unsaved': 'The webhook or secret changed but is not saved yet; press Save to apply it.',
       'settings.hint': 'Only tasks with BOTH a date and a time are reminded; a date alone stays silent. A reminder stays valid for six hours after its time — anything older is marked as handled without a push.',
       'settings.guide': 'How it works',
@@ -299,6 +317,12 @@ window.__ModuleLoader__.load({
       reopened: 'var(--dsw-alias-state-warn-primary)',
       updated: 'var(--dsw-alias-state-idle-primary)',
       deleted: 'var(--dsw-alias-state-error-primary)',
+    }
+
+    // A completion the reminder performed reads differently from a click.
+    function eventLabel(event, t) {
+      if (event.kind === 'completed' && event.auto) return t('event.autoCompleted')
+      return t(`event.${event.kind}`)
     }
 
     /* ---------- data ---------- */
@@ -448,6 +472,7 @@ window.__ModuleLoader__.load({
       if (task.sessionId) entries.push([t('hover.session'), task.sessionId.slice(0, 8)])
       if (task.createdAt) entries.push([t('hover.created'), stampOf(task.createdAt, t)])
       if (task.completedAt) entries.push([t('hover.completed'), stampOf(task.completedAt, t)])
+      if (task.autoCompleted) entries.push([t('hover.auto'), t('hover.autoValue')])
 
       return h(
         'div',
@@ -482,7 +507,7 @@ window.__ModuleLoader__.load({
                   'li',
                   { key: event.id },
                   h('span', { className: 'dsht-when' }, clockOf(event.at)),
-                  h('span', { className: 'dsht-kind', style: { color: KIND_COLOR[event.kind] } }, t(`event.${event.kind}`)),
+                  h('span', { className: 'dsht-kind', style: { color: KIND_COLOR[event.kind] } }, eventLabel(event, t)),
                   event.time ? h('span', { className: 'dsht-at' }, event.time) : null,
                   h('span', { className: 'dsht-hc-item' }, event.title),
                 ),
@@ -861,6 +886,9 @@ window.__ModuleLoader__.load({
                           'div',
                           { className: 'dsht-meta' },
                           task.completedAt ? h('span', { className: 'dsht-when' }, clockOf(task.completedAt)) : null,
+                          task.autoCompleted
+                            ? h('span', { className: 'dsht-tag dsht-auto', title: t('list.autoTitle') }, t('list.auto'))
+                            : null,
                           task.due ? h(DueChip, { t, due: task.due, time: task.time, done: true }) : null,
                         ),
                       ),
@@ -988,7 +1016,7 @@ window.__ModuleLoader__.load({
                     'li',
                     { key: event.id, className: 'dsht-day-item' },
                     h('span', { className: 'dsht-when' }, clockOf(event.at)),
-                    h('span', { className: 'dsht-kind', style: { color: KIND_COLOR[event.kind] } }, t(`event.${event.kind}`)),
+                    h('span', { className: 'dsht-kind', style: { color: KIND_COLOR[event.kind] } }, eventLabel(event, t)),
                     event.time ? h('span', { className: 'dsht-at' }, event.time) : null,
                     h('span', { className: 'dsht-day-title' }, event.title),
                   ),
@@ -1065,7 +1093,7 @@ window.__ModuleLoader__.load({
     /* ---------- reminder settings ---------- */
 
     function SettingsCard({ t, onClose, onSaved, onHelp }) {
-      const [form, setForm] = useState({ enabled: false, webhook: '', secret: '' })
+      const [form, setForm] = useState({ enabled: false, webhook: '', secret: '', autoComplete: true })
       const [status, setStatus] = useState({ kind: 'idle', text: '' })
       const [busy, setBusy] = useState(false)
       const [dirty, setDirty] = useState(false)
@@ -1076,7 +1104,12 @@ window.__ModuleLoader__.load({
         call('settings').then(
           (value) => {
             if (!alive.current || !value) return
-            setForm({ enabled: Boolean(value.enabled), webhook: value.webhook || '', secret: value.secret || '' })
+            setForm({
+              enabled: Boolean(value.enabled),
+              webhook: value.webhook || '',
+              secret: value.secret || '',
+              autoComplete: value.autoComplete !== false,
+            })
             if (value.lastError) setStatus({ kind: 'error', text: value.lastError })
           },
           () => undefined,
@@ -1091,8 +1124,20 @@ window.__ModuleLoader__.load({
       const persist = async () => {
         setBusy(true)
         try {
-          const value = await call('saveSettings', { enabled: form.enabled, webhook: form.webhook, secret: form.secret })
-          if (value) setForm({ enabled: Boolean(value.enabled), webhook: value.webhook || '', secret: value.secret || '' })
+          const value = await call('saveSettings', {
+            enabled: form.enabled,
+            webhook: form.webhook,
+            secret: form.secret,
+            autoComplete: form.autoComplete,
+          })
+          if (value) {
+            setForm({
+              enabled: Boolean(value.enabled),
+              webhook: value.webhook || '',
+              secret: value.secret || '',
+              autoComplete: value.autoComplete !== false,
+            })
+          }
           setDirty(false)
           setStatus({ kind: 'ok', text: t('settings.saved') })
           if (onSaved) onSaved(value)
@@ -1112,7 +1157,7 @@ window.__ModuleLoader__.load({
         patch({ enabled: next })
         setBusy(true)
         try {
-          const value = await call('saveSettings', { enabled: next, webhook: form.webhook, secret: form.secret })
+          const value = await call('saveSettings', { enabled: next, webhook: form.webhook, secret: form.secret, autoComplete: form.autoComplete })
           if (!alive.current) return
           setForm((prev) => ({ ...prev, enabled: value ? Boolean(value.enabled) : next }))
           setDirty(false)
@@ -1121,6 +1166,26 @@ window.__ModuleLoader__.load({
         } catch (error) {
           if (!alive.current) return
           setForm((prev) => ({ ...prev, enabled: !next }))
+          setStatus({ kind: 'error', text: error.message })
+        } finally {
+          if (alive.current) setBusy(false)
+        }
+      }
+
+      // Same deal as the reminder switch: a toggle that needs a second click on
+      // Save is a toggle people think they already set.
+      const toggleAutoComplete = async (next) => {
+        patch({ autoComplete: next })
+        setBusy(true)
+        try {
+          const value = await call('saveSettings', { autoComplete: next })
+          if (!alive.current) return
+          setForm((prev) => ({ ...prev, autoComplete: value ? value.autoComplete !== false : next }))
+          setStatus({ kind: 'ok', text: next ? t('settings.autoOn') : t('settings.autoOff') })
+          if (onSaved) onSaved(value)
+        } catch (error) {
+          if (!alive.current) return
+          setForm((prev) => ({ ...prev, autoComplete: !next }))
           setStatus({ kind: 'error', text: error.message })
         } finally {
           if (alive.current) setBusy(false)
@@ -1163,6 +1228,17 @@ window.__ModuleLoader__.load({
           }),
           h('span', null, t('settings.enabled')),
         ),
+        h(
+          'label',
+          { className: 'dsht-toggle' },
+          h('input', {
+            type: 'checkbox',
+            checked: form.autoComplete,
+            onChange: (event) => void toggleAutoComplete(Boolean(event.target.checked)),
+          }),
+          h('span', null, t('settings.autoComplete')),
+        ),
+        h('div', { className: 'dsht-hint dsht-hint-slim' }, t('settings.autoCompleteHint')),
         h(
           'label',
           { className: 'dsht-field' },
@@ -1494,6 +1570,8 @@ window.__ModuleLoader__.load({
 .dsht-hint{font-size:11.5px;line-height:1.5;color:var(--dsw-alias-label-secondary)}
 .dsht-warn{font-size:11.5px;line-height:1.5;color:var(--dsw-alias-state-warn-primary)}
 .dsht-notified{color:var(--dsw-alias-state-success-primary)}
+.dsht-auto{color:var(--dsw-alias-brand-primary)}
+.dsht-hint-slim{margin:-6px 0 0 24px}
 .dsht-link{border:0;background:transparent;padding:0;text-align:left;font:inherit;font-size:11.5px;color:var(--dsw-alias-brand-primary);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 .dsht-modal-mask{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(0,0,0,.42);animation:dsht-fade .12s ease-out}
 @keyframes dsht-fade{from{opacity:0}to{opacity:1}}
