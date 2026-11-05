@@ -71,6 +71,28 @@ globalThis.fetch = async (url, init) => {
 
 apply(ctx)
 
+// A task reminded before auto-complete existed: still open, but notified.
+const legacyId = 't_legacy_0001'
+const legacyAt = new Date(Date.now() - 90 * 60 * 1000)
+const pad = (n) => String(n).padStart(2, '0')
+const legacyDue = `${legacyAt.getFullYear()}-${pad(legacyAt.getMonth() + 1)}-${pad(legacyAt.getDate())}`
+const legacyTime = `${pad(legacyAt.getHours())}:${pad(legacyAt.getMinutes())}`
+tables.tasks.set(legacyId, {
+  id: legacyId,
+  title: '旧的已提醒任务',
+  note: null,
+  due: legacyDue,
+  time: legacyTime,
+  status: 'open',
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  completedAt: null,
+  notifiedFor: `${legacyDue}T${legacyTime}`,
+  notifiedAt: new Date().toISOString(),
+  source: 'user',
+  sessionId: null,
+})
+
 const route = routes[0]
 async function callApi(body) {
   const request = new Request('http://127.0.0.1/api/dsh-tasks/op', {
@@ -147,6 +169,20 @@ check('the auto completion is logged as automatic', autoEvent?.auto === true, au
 
 const tick2 = await callApi({ op: 'tick' })
 check('second tick deduped', tick2.value?.sent === 0 && sent.length === before + 1, tick2.value)
+
+// --- one-shot sweep of tasks reminded before auto-complete existed ---------
+const sweptList = await callApi({ op: 'list' })
+const legacyAfter = sweptList.value?.tasks?.find((task) => task.id === legacyId)
+check(
+  'a task reminded before the feature is swept into done',
+  legacyAfter?.status === 'done' && legacyAfter?.autoCompleted === true,
+  legacyAfter,
+)
+await callApi({ op: 'reopen', id: legacyId })
+await callApi({ op: 'tick' })
+const reopenedList = await callApi({ op: 'list' })
+const reopenedAfter = reopenedList.value?.tasks?.find((task) => task.id === legacyId)
+check('the sweep never runs twice, so a reopened task stays open', reopenedAfter?.status === 'open', reopenedAfter)
 
 // --- tick: stale slot stays silent -----------------------------------------
 const stale = at(-7 * 60)

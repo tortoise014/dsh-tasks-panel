@@ -6,7 +6,7 @@
   <a href="https://www.npmjs.com/package/dsh-tasks-panel"><img alt="downloads" src="https://img.shields.io/npm/dm/dsh-tasks-panel?color=2f81f7"></a>
   <img alt="license" src="https://img.shields.io/npm/l/dsh-tasks-panel?color=3fb950">
   <img alt="node" src="https://img.shields.io/node/v/dsh-tasks-panel?color=339933&logo=node.js">
-  <img alt="checks" src="https://img.shields.io/badge/tests-135%20checks-brightgreen">
+  <img alt="checks" src="https://img.shields.io/badge/tests-137%20checks-brightgreen">
 </p>
 
 <p align="center">
@@ -95,7 +95,7 @@ npm test        # runs the three suites in order
 | suite | what it covers |
 | --- | --- |
 | `node test/host.mjs` (38 checks) | storage ops (`add`/`complete`/`reopen`/`update`/`remove`/`clearCompleted`), time normalisation, the HTTP-op surface, the `task_write` tool |
-| `node test/reminders.mjs` (32 checks) | Feishu scheduling: due detection, one push per slot, the six-hour grace window, auto-completion on delivery, signature signing, error reporting, the settings guard |
+| `node test/reminders.mjs` (34 checks) | Feishu scheduling: due detection, one push per slot, the six-hour grace window, auto-completion on delivery, the one-shot sweep of tasks reminded before 0.5.2, signature signing, error reporting, the settings guard |
 | `node test/ui.mjs` (65 checks) | the client half rendered in jsdom: slot registration, to-do rows, all three hover cards, the compose form's defaults, the first-run guide, the settings card with both switches |
 
 Everything runs against the real bundle — no mocks of our own code. The host suites import `index.js`

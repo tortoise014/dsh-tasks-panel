@@ -57,6 +57,8 @@ const SettingsSchema = z.object({
   onboarded: z.boolean().nullish(),
   // Whether a delivered reminder closes the task. On unless switched off.
   autoComplete: z.boolean().nullish(),
+  // One-shot marker: tasks reminded before auto-complete existed were swept.
+  swept: z.boolean().nullish(),
 })
 
 const SPEC = {
@@ -67,7 +69,7 @@ const SPEC = {
   invalidRecords: 'backup-and-skip',
   global: {
     schema: SettingsSchema,
-    initial: { enabled: false, webhook: '', secret: '', onboarded: false, autoComplete: true },
+    initial: { enabled: false, webhook: '', secret: '', onboarded: false, autoComplete: true, swept: false },
   },
   tables: {
     tasks: { valueSchema: TaskSchema },
@@ -215,6 +217,8 @@ function createOps(ctx) {
 
   let lastSentAt = null
   let lastError = null
+  // How many legacy tasks the one-shot sweep closed, for the panel to mention.
+  let lastSwept = 0
 
   async function currentSettings() {
     const handle = await domain()
@@ -236,6 +240,7 @@ function createOps(ctx) {
       waiting,
       lastSentAt,
       lastError,
+      lastSwept,
     }
   }
 
@@ -252,6 +257,9 @@ function createOps(ctx) {
         input.autoComplete === undefined
           ? current.autoComplete !== false
           : Boolean(input.autoComplete),
+      // The sweep marker is not a user setting: losing it would re-close tasks
+      // the user reopened on purpose.
+      swept: current.swept === true,
     }
     if (next.enabled && !next.webhook) throw new Error('填写飞书 webhook 后才能开启提醒')
     // Turning reminders on means the setup guide was understood; do not show it again.
@@ -276,12 +284,52 @@ function createOps(ctx) {
   }
 
   /**
+   * Tasks reminded before auto-complete existed sat open with a notifiedAt
+   * stamp. Sweep them once so the list agrees with the rule "a reminder that
+   * went out means the appointment happened". Runs once: a task the user
+   * reopens afterwards must stay open.
+   */
+  async function sweepNotified() {
+    const handle = await domain()
+    const settings = handle.global.get()
+    if (settings.swept) return 0
+    let closed = 0
+    if (settings.autoComplete !== false) {
+      const table = handle.table('tasks')
+      const now = Date.now()
+      for (const [id, task] of [...table.entries()]) {
+        if (task.status !== 'open' || !task.notifiedAt) continue
+        const at = dueAt(task)
+        if (at === null || at > now) continue
+        const next = {
+          ...task,
+          status: 'done',
+          completedAt: task.notifiedAt,
+          updatedAt: task.notifiedAt,
+          autoCompleted: true,
+        }
+        await table.put(id, next)
+        await appendEvent(next, 'completed', task.notifiedAt, true)
+        closed += 1
+      }
+    }
+    await handle.global.set({ ...settings, swept: true })
+    return closed
+  }
+
+  /**
    * Sends at most one reminder per task slot. A slot whose deadline passed more
    * than CLOCK_GRACE_MS ago is marked silently instead of pushed, so a laptop
    * that was asleep all night does not blast yesterday's appointments.
    */
   async function runTick() {
     const handle = await domain()
+    try {
+      const swept = await sweepNotified()
+      if (swept > 0) lastSwept = swept
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error)
+    }
     const settings = handle.global.get()
     if (!settings.enabled || !settings.webhook) return { sent: 0 }
     const table = handle.table('tasks')
