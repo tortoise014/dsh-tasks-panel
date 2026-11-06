@@ -311,6 +311,36 @@ check('add sends date + time', Boolean(addCall) && addCall.body.due === tomorrow
 const resetTime = document.querySelector('input[type="time"]')
 check('the clock resets to "soon" after adding', /^\d{2}:\d{2}$/.test(resetTime?.value ?? '') && resetTime.value !== '18:30', resetTime?.value)
 
+// quick picks: hovering the clock suggests times instead of forcing the picker
+const clockAfter = (minutes) => {
+  const slot = 5 * 60 * 1000
+  const at = Math.ceil((Date.now() + minutes * 60000 + 60000) / slot) * slot
+  const date = new Date(at)
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+const timeWrap = document.querySelector('.dsht-timewrap')
+check('clock sits in a hover wrapper', Boolean(timeWrap))
+check('quick picks start hidden', document.querySelector('.dsht-quick') === null)
+if (timeWrap) {
+  enter(timeWrap)
+  await tick(240)
+  const menu = document.querySelector('.dsht-quick')
+  check('hovering the clock opens the quick picks', Boolean(menu))
+  const picks = [...document.querySelectorAll('.dsht-quick-item')]
+  check('quick picks offer four offsets', picks.length === 4)
+  const labels = picks.map((node) => node.firstChild.textContent)
+  // The harness stubs t() with the key itself, so labels arrive untranslated.
+  check('quick picks are labelled', labels.join(',') === 'quick.now,quick.half,quick.hour,quick.two', labels.join(','))
+  const values = picks.map((node) => node.lastChild.textContent)
+  check('quick picks preview their clock', values.every((value) => /^\d{2}:\d{2}$/.test(value)) && new Set(values).size === 4, values.join(','))
+  const clockField = document.querySelector('input[type="time"]')
+  if (picks[2]) picks[2].dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+  await tick(60)
+  const expected = clockAfter(60)
+  check('clicking an offset writes that clock', clockField.value === expected, `${clockField.value} vs ${expected}`)
+  check('picking a time closes the menu', document.querySelector('.dsht-quick') === null)
+}
+
 // calendar tab
 const tabButtons = [...document.querySelectorAll('.dsht-tab')]
 tabButtons[1].dispatchEvent(new window.MouseEvent('click', { bubbles: true }))

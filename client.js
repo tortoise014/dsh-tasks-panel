@@ -27,6 +27,11 @@ window.__ModuleLoader__.load({
       'compose.time': '时间',
       'compose.clearDue': '不设日期',
       'compose.add': '添加',
+      'quick.title': '快捷时间',
+      'quick.now': '现在',
+      'quick.half': '半小时后',
+      'quick.hour': '1 小时后',
+      'quick.two': '2 小时后',
       'panel.back': '返回',
       'list.open': '待完成',
       'list.done': '已完成',
@@ -141,6 +146,11 @@ window.__ModuleLoader__.load({
       'compose.time': 'Time',
       'compose.clearDue': 'No date',
       'compose.add': 'Add',
+      'quick.title': 'Quick picks',
+      'quick.now': 'Now',
+      'quick.half': 'In 30 minutes',
+      'quick.hour': 'In 1 hour',
+      'quick.two': 'In 2 hours',
       'panel.back': 'Back',
       'list.open': 'Open',
       'list.done': 'Done',
@@ -298,6 +308,19 @@ window.__ModuleLoader__.load({
       const at = Math.ceil((date.getTime() + 60 * 1000) / SLOT_MS) * SLOT_MS
       const next = new Date(at)
       return `${pad2(next.getHours())}:${pad2(next.getMinutes())}`
+    }
+
+    // Quick picks offered while the pointer rests on the clock field: offsets from
+    // "now", rounded up to the next slot, so a click never lands in the past.
+    const QUICK_OFFSETS = [
+      [0, 'quick.now'],
+      [30, 'quick.half'],
+      [60, 'quick.hour'],
+      [120, 'quick.two'],
+    ]
+
+    function clockAfter(minutes) {
+      return nextSlotClock(new Date(Date.now() + minutes * 60 * 1000))
     }
 
     function monthCells(year, month) {
@@ -713,6 +736,8 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = useState(false)
       const [error, setError] = useState(null)
       const [showDone, setShowDone] = useState(true)
+      const [quick, setQuick] = useState(false)
+      const quickTimer = useRef(null)
       const hover = useHover()
       const hoverTask = (task) => ({
         onMouseEnter: (event) => hover.show(event.currentTarget, { kind: 'task', task, t }),
@@ -721,6 +746,31 @@ window.__ModuleLoader__.load({
 
       const open = state.tasks.filter((task) => task.status === 'open')
       const done = state.tasks.filter((task) => task.status === 'done')
+
+      // Hovering the clock opens the quick picks after a beat, and they linger
+      // briefly after the pointer leaves so moving onto one does not dismiss it.
+      const openQuick = useCallback(() => {
+        if (quickTimer.current) clearTimeout(quickTimer.current)
+        quickTimer.current = setTimeout(() => setQuick(true), 140)
+      }, [])
+
+      const closeQuick = useCallback(() => {
+        if (quickTimer.current) clearTimeout(quickTimer.current)
+        quickTimer.current = setTimeout(() => setQuick(false), 180)
+      }, [])
+
+      useEffect(
+        () => () => {
+          if (quickTimer.current) clearTimeout(quickTimer.current)
+        },
+        [],
+      )
+
+      const pickClock = (minutes) => {
+        setQuick(false)
+        if (!due) setDue(ymd(new Date()))
+        setTime(clockAfter(minutes))
+      }
 
       const run = (op, extra) => {
         if (busy) return
@@ -783,15 +833,49 @@ window.__ModuleLoader__.load({
                 '×',
               )
             : null,
-          h('input', {
-            className: 'dsht-date dsht-time',
-            type: 'time',
-            value: time,
-            disabled: !due,
-            title: t('compose.time'),
-            'aria-label': t('compose.time'),
-            onChange: (event) => setTime(event.target.value),
-          }),
+          h(
+            'span',
+            {
+              className: 'dsht-timewrap',
+              onMouseEnter: openQuick,
+              onMouseLeave: closeQuick,
+            },
+            h('input', {
+              className: 'dsht-date dsht-time',
+              type: 'time',
+              value: time,
+              disabled: !due,
+              title: t('compose.time'),
+              'aria-label': t('compose.time'),
+              'aria-haspopup': 'menu',
+              'aria-expanded': quick ? 'true' : 'false',
+              onChange: (event) => setTime(event.target.value),
+              onFocus: openQuick,
+              onBlur: closeQuick,
+            }),
+            quick
+              ? h(
+                  'div',
+                  { className: 'dsht-quick', role: 'menu', 'aria-label': t('quick.title') },
+                  QUICK_OFFSETS.map(([minutes, key]) => {
+                    const value = clockAfter(minutes)
+                    return h(
+                      'button',
+                      {
+                        key,
+                        type: 'button',
+                        role: 'menuitemradio',
+                        className: 'dsht-quick-item',
+                        'aria-checked': value === time ? 'true' : 'false',
+                        onClick: () => pickClock(minutes),
+                      },
+                      h('span', null, t(key)),
+                      h('span', { className: 'dsht-quick-val' }, value),
+                    )
+                  }),
+                )
+              : null,
+          ),
           h('button', { className: 'dsht-primary', type: 'submit', disabled: busy || !title.trim() }, t('compose.add')),
         ),
         error ? h('div', { className: 'dsht-error', role: 'alert' }, error) : null,
@@ -1522,6 +1606,13 @@ window.__ModuleLoader__.load({
 .dsht-back{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12.5px;padding:4px 9px;cursor:pointer;white-space:nowrap}
 .dsht-back:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 .dsht-time{width:104px}
+.dsht-timewrap{position:relative;display:inline-flex;align-items:center}
+.dsht-quick{position:absolute;top:calc(100% + 6px);right:0;z-index:70;display:flex;flex-direction:column;gap:2px;min-width:168px;padding:5px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-overlay);box-shadow:0 12px 28px -10px rgba(0,0,0,.45);animation:dsht-hc-in .12s ease-out}
+.dsht-quick-item{display:flex;align-items:center;gap:12px;justify-content:space-between;border:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;padding:6px 8px;border-radius:6px;cursor:pointer;text-align:left;white-space:nowrap}
+.dsht-quick-item:hover,.dsht-quick-item:focus-visible{background:var(--dsw-alias-bg-layer-2)}
+.dsht-quick-item[aria-checked="true"]{color:var(--dsw-alias-brand-primary)}
+.dsht-quick-val{font-variant-numeric:tabular-nums;font-size:12px;color:var(--dsw-alias-label-secondary)}
+.dsht-quick-item[aria-checked="true"] .dsht-quick-val{color:var(--dsw-alias-brand-primary)}
 .dsht-side{display:inline-flex;align-items:center}
 .dsht-at{font-variant-numeric:tabular-nums;font-size:10.5px;color:var(--dsw-alias-label-secondary);padding:0 5px;border-radius:5px;background:var(--dsw-alias-bg-layer-2);white-space:nowrap}
 .dsht-primary{border:0;border-radius:8px;padding:7px 15px;background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-bg-base);font:inherit;font-size:13px;font-weight:500;cursor:pointer}

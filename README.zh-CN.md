@@ -6,7 +6,7 @@
   <a href="https://www.npmjs.com/package/dsh-tasks-panel"><img alt="downloads" src="https://img.shields.io/npm/dm/dsh-tasks-panel?color=2f81f7"></a>
   <img alt="license" src="https://img.shields.io/npm/l/dsh-tasks-panel?color=3fb950">
   <img alt="node" src="https://img.shields.io/node/v/dsh-tasks-panel?color=339933&logo=node.js">
-  <img alt="checks" src="https://img.shields.io/badge/tests-137%20checks-brightgreen">
+  <img alt="checks" src="https://img.shields.io/badge/tests-145%20checks-brightgreen">
 </p>
 
 <p align="center">
@@ -83,7 +83,7 @@ npm test        # 依次跑下面三套
 | --- | --- |
 | `node test/host.mjs`（38 项） | 存储操作（`add`/`complete`/`reopen`/`update`/`remove`/`clearCompleted`）、时间规范化、HTTP op 接口、`task_write` 工具 |
 | `node test/reminders.mjs`（34 项） | 飞书调度：到期判定、每个时段只推一次、6 小时宽限、推送后自动完成、升级前已提醒任务的一次性归位、签名、错误上报、设置校验 |
-| `node test/ui.mjs`（65 项） | 在 jsdom 里渲染的浏览器半边：slot 注册、待办行、三种悬停卡、添加表单的默认值、首次引导、带两个开关的提醒设置卡 |
+| `node test/ui.mjs`（73 项） | 在 jsdom 里渲染的浏览器半边：slot 注册、待办行、三种悬停卡、添加表单的默认值、首次引导、带两个开关的提醒设置卡 |
 
 全部对着真实的 bundle 跑，不 mock 自己的代码。宿主套件用假的 Cordis context 和内存表 import `index.js`；UI 套件通过假的 `window.__ModuleLoader__` 加载 `client.js`，把面板渲染进 jsdom。全程不联网：飞书调用是打桩的 `fetch`，只记录它本来会发出去的 payload。
 

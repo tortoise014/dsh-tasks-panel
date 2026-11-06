@@ -1,6 +1,6 @@
 {
   "name": "dsh-tasks-panel",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "A sidebar Tasks panel for DeepSeek Harness: to-dos with clock times, Feishu reminders on your phone, and a calendar of what you finished each day.",
   "type": "module",
   "main": "./index.js",
